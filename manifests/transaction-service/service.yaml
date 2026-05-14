@@ -5,7 +5,7 @@ metadata:
   labels:
     app: transaction-service
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: transaction-service
   ports:
