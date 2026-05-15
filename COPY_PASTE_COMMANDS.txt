@@ -1,0 +1,184 @@
+===============================================
+🎮 PLAY WITH KUBERNETES - COPY THESE COMMANDS
+===============================================
+
+STEP 1: INITIALIZE CLUSTER (First time only)
+---------------------------------------------
+
+kubeadm init --apiserver-advertise-address $(hostname -i) --pod-network-cidr 10.5.0.0/16
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+kubectl apply -f https://github.com/weaveworks/weave/releases/download/v2.8.1/weave-daemonset-k8s.yaml
+
+
+STEP 2: WAIT FOR NODE READY
+----------------------------
+
+kubectl get nodes
+
+# Wait until STATUS shows "Ready" (takes 30-60 seconds)
+
+
+STEP 3: DEPLOY BANKING PLATFORM
+--------------------------------
+
+kubectl create namespace banking-platform
+
+kubectl create configmap banking-app-config -n banking-platform \
+  --from-literal=DB_HOST=postgres-service \
+  --from-literal=DB_PORT=5432 \
+  --from-literal=DB_NAME=banking_db \
+  --from-literal=PAYMENT_SERVICE_PORT=8081 \
+  --from-literal=TRANSACTION_SERVICE_PORT=8082 \
+  --from-literal=NOTIFICATION_SERVICE_PORT=8083 \
+  --from-literal=APP_ENVIRONMENT=development
+
+kubectl create secret generic banking-app-secret -n banking-platform \
+  --from-literal=DB_USERNAME=dbuser \
+  --from-literal=DB_PASSWORD=change-me-in-production \
+  --from-literal=API_KEY=your-api-key-here \
+  --from-literal=JWT_SECRET=your-jwt-secret-key
+
+kubectl apply -n banking-platform -f - <<EOF
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-service
+  template:
+    metadata:
+      labels:
+        app: payment-service
+    spec:
+      containers:
+      - name: payment-service
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+        envFrom:
+        - configMapRef:
+            name: banking-app-config
+        - secretRef:
+            name: banking-app-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-service
+spec:
+  selector:
+    app: payment-service
+  ports:
+  - port: 8081
+    targetPort: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: transaction-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: transaction-service
+  template:
+    metadata:
+      labels:
+        app: transaction-service
+    spec:
+      containers:
+      - name: transaction-service
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+        envFrom:
+        - configMapRef:
+            name: banking-app-config
+        - secretRef:
+            name: banking-app-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: transaction-service
+spec:
+  selector:
+    app: transaction-service
+  ports:
+  - port: 8082
+    targetPort: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+    spec:
+      containers:
+      - name: notification-service
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+        envFrom:
+        - configMapRef:
+            name: banking-app-config
+        - secretRef:
+            name: banking-app-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+spec:
+  selector:
+    app: notification-service
+  ports:
+  - port: 8083
+    targetPort: 80
+EOF
+
+
+STEP 4: VERIFY DEPLOYMENT
+--------------------------
+
+kubectl get all -n banking-platform
+
+# You should see:
+# - 3 deployments
+# - 3 pods (all Running)
+# - 3 services
+
+
+USEFUL COMMANDS
+---------------
+
+# View pod details
+kubectl get pods -n banking-platform -o wide
+
+# View logs
+kubectl logs -n banking-platform -l app=payment-service
+
+# Shell into pod
+kubectl exec -it $(kubectl get pod -n banking-platform -l app=payment-service -o jsonpath='{.items[0].metadata.name}') -n banking-platform -- sh
+
+# Delete everything
+kubectl delete namespace banking-platform
+
+
+===============================================
+✅ DONE! Your banking platform is deployed!
+===============================================

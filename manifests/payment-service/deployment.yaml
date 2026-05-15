@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: payment-service
+  namespace: banking-platform
   labels:
     app: payment-service
 spec:
@@ -20,3 +21,46 @@ spec:
           imagePullPolicy: Never
           ports:
             - containerPort: 8081
+          env:
+            # Configuration from ConfigMap
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: banking-app-config
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: banking-app-config
+                  key: DB_PORT
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: banking-app-config
+                  key: DB_NAME
+            - name: PAYMENT_SERVICE_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: banking-app-config
+                  key: PAYMENT_SERVICE_PORT
+            - name: APP_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: banking-app-config
+                  key: APP_ENVIRONMENT
+            # Secrets
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: banking-app-secret
+                  key: DB_USERNAME
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: banking-app-secret
+                  key: DB_PASSWORD
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: banking-app-secret
+                  key: API_KEY
